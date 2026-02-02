@@ -1,17 +1,25 @@
+import os
 from pyrogram import Client, filters
 import yt_dlp
-import os
 import google.generativeai as genai
 from database import *
 
-# إعدادات المحرك
-API_ID = "YOUR_API_ID"
-API_HASH = "YOUR_API_HASH"
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
+# قراءة البيانات من بيئة التشغيل (Railway Variables)
+API_ID = os.environ.get("API_ID")
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+AI_KEY = os.environ.get("GEMINI_API_KEY")
+
+# التحقق من وجود البيانات لتجنب انهيار النظام
+if not all([API_ID, API_HASH, BOT_TOKEN]):
+    print("❌ خطأ: لم يتم العثور على المتغيرات في Railway Variables!")
+    exit()
+
+# إعداد المحرك
+genai.configure(api_key=AI_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
-app = Client("OmniBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client("OmniBot", api_id=int(API_ID), api_hash=API_HASH, bot_token=BOT_TOKEN)
 setup_db()
 
 @app.on_message(filters.regex(r"(https?://\S+)"))
@@ -22,35 +30,24 @@ async def downloader(client, message):
         ydl_opts = {'outtmpl': 'video.mp4', 'quiet': True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        await message.reply_video("video.mp4")
         if os.path.exists("video.mp4"):
+            await message.reply_video("video.mp4")
             os.remove("video.mp4")
         await msg.delete()
-
-@app.on_message(filters.command("اضف_رد") & filters.group)
-async def add_rep(client, message):
-    if get_rank(message.from_user.id) >= 1:
-        parts = message.text.split(" ", 2)
-        if len(parts) > 2:
-            add_response(parts[1], parts[2])
-            await message.reply(f"✅ تم إضافة الرد: {parts[1]}")
 
 @app.on_message(filters.command("الاحصائيات"))
 async def stats(client, message):
     c.execute('SELECT COUNT(*) FROM responses')
     res_count = c.fetchone()[0]
-    status_msg = (
-        "📊 **لوحة تحكم المعماري**\n"
-        "--- --- --- --- ---\n"
-        f"🤖 حالة البوت: متصل\n"
-        f"💾 الردود المحفوظة: {res_count}\n"
-    )
-    await message.reply(status_msg)
+    await message.reply(f"📊 حالة البوت: متصل\n💾 الردود: {res_count}")
 
 @app.on_message(filters.mentioned | filters.reply)
 async def ai_chat(client, message):
-    await client.send_chat_action(message.chat.id, "typing")
-    response = model.generate_content(message.text)
-    await message.reply(response.text)
+    try:
+        await client.send_chat_action(message.chat.id, "typing")
+        response = model.generate_content(message.text)
+        await message.reply(response.text)
+    except:
+        await message.reply("⚠️ محرك AI يحتاج لمفتاح API صحيح.")
 
 app.run()
