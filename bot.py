@@ -23,7 +23,8 @@ async def downloader(client, message):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         await message.reply_video("video.mp4")
-        os.remove("video.mp4")
+        if os.path.exists("video.mp4"):
+            os.remove("video.mp4")
         await msg.delete()
 
 @app.on_message(filters.command("اضف_رد") & filters.group)
@@ -34,7 +35,7 @@ async def add_rep(client, message):
             add_response(parts[1], parts[2])
             await message.reply(f"✅ تم إضافة الرد: {parts[1]}")
 
-@app.on_message(filters.command("الاحصائيات") & filters.user(12345678)) # استبدل بالرقم التعريفي الخاص بك
+@app.on_message(filters.command("الاحصائيات"))
 async def stats(client, message):
     c.execute('SELECT COUNT(*) FROM responses')
     res_count = c.fetchone()[0]
